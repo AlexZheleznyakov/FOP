@@ -101,7 +101,7 @@ class FOP {
 	 */
 	public function getVersion() {
 		$cmd = 'fop -v 2>&1';
-		exec($cmd, $output);
+		exec($cmd, $output, $result);
 		if (!count($output)) {
 			throw new FOP_Exception('command output is empty', 1001);
 		}
@@ -146,11 +146,12 @@ class FOP {
     /**
      * Returns path to rendered pdf file
      * @throws FOP_Exception
+     * @param  string $format
      * @return string
      */
-    public function render() {
+    public function render($format = 'pdf') {
         $Config = FOP_Config::getInstance();
-        $pdf_file_path = $Config->tmpRoot.$this->_renderTmpPDFFilename();
+        $out_file_path = $Config->tmpRoot.$this->_renderTmpOutFilename();
         if (!$this->_xsl->isValid()) {
             throw new FOP_Exception('Can\'t find xsl template file: "'.$this->_xsl->getFilePath().'"', 1008);
         }
@@ -159,13 +160,20 @@ class FOP {
 	    if ($Config->fopConfXMLRoot and is_file($Config->fopConfXMLRoot)) {
 	        $conf = '-c '.$Config->fopConfXMLRoot;
         }
-        $bash = $Config->pathToFOP.'fop '.$conf.' -xml '.$xml_file_path.' -xsl '.$this->_xsl->getFilePath().' -pdf '.$pdf_file_path.' 2>&1';
+
+        switch ($format) {
+            case 'pdf'  : $formatString = '-pdf'; break;
+            case 'text' : $formatString = '-txt'; break;
+            default: $formatString = '.pdf'; break;
+        }
+
+        $bash = $Config->pathToFOP.'fop '.$conf.' -xml '.$xml_file_path.' -xsl '.$this->_xsl->getFilePath().' '.$formatString.' '.$out_file_path.' 2>&1';
         exec($bash, $output);
         unlink($xml_file_path);
-	    if (!file_exists($pdf_file_path)) {
+	    if (!file_exists($out_file_path)) {
 			$this->_processOutput($output);
         }
-        return $pdf_file_path;
+        return $out_file_path;
     }
 
     private function _processOutput($output) {
@@ -197,13 +205,14 @@ class FOP {
     /**
      * Render and flush pdf file
      * @throws FOP_Exception
-     * @param string $filename
+     * @param  string $filename
+     * @param  string $format
      */
-    public function renderAndFlush($filename = '') {
+    public function renderAndFlush($filename = '', $format = 'pdf') {
         if (empty($filename)) {
             $filename = FOP_Config::getInstance()->downFilename;
         }
-        $this->flush($this->render(), $filename);
+        $this->flush($this->render($format), $filename);
     }
 
 	/**
@@ -219,8 +228,14 @@ class FOP {
         die();
 	}
 
-    private function _renderTmpPDFFilename() {
-        return 'fop_'.str_replace('.', '', microtime('true')).'.pdf';
+    private function _renderTmpOutFilename($format = 'pdf') {
+        switch ($format) {
+            case 'pdf'  : $extension = '.pdf'; break;
+            case 'text' : $extension = '.txt'; break;
+            default: $extension = '.pdf'; break;
+        }
+
+        return 'fop_'.str_replace('.', '', microtime('true')).$extension;
     }
 
 }
